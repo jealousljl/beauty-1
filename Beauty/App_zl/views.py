@@ -1,7 +1,4 @@
-
-
 from django.core.paginator import Paginator
-
 
 from django.http import JsonResponse, HttpResponseRedirect
 from django.shortcuts import render
@@ -13,22 +10,23 @@ from App_zl.models import GCategory, GCategory2, Goods, Cart, Orders, Goodsorder
 
 def dizhi(request):
     if request.method == 'GET':
-        user = request.user
-        if user and user.id:
+        id = request.session.get('user_id')
+        if id:
             users = User.objects.all()
-            addrs = Address.objects.filter(use_id=user.id)
+            addrs = Address.objects.filter(use_id=id)
             return render(request, 'dizhi_liebiao.html', {'addrs': addrs, 'users': users})
         else:
-            return HttpResponseRedirect(reverse('a:classify'))
+            return HttpResponseRedirect(reverse('zl:classify'))
         # users = User.objects.all()
         # addrs = Address.objects.filter(use_id=1)
         # return render(request, 'dizhi_liebiao.html', {'addrs': addrs, 'users': users})
 
+
 # 增加地址
 def adddizhi(request):
     if request.method == 'GET':
-        user = request.user
-        if user and user.id:
+        id = request.session.get('user_id')
+        if id:
             return render(request, 'tianxie_dizhi.html')
         # return render(request, 'tianxie_dizhi.html')
     elif request.method == 'POST':
@@ -40,15 +38,15 @@ def adddizhi(request):
         addrstatus = request.POST.get('addstatus')
         email = request.POST.get('email')
         address = request.POST.get('address')
-        user = request.user
-        if user and user.id:
+        id = request.session.get('user_id')
+        if id:
             if addrstatus == '1':
-                addrs = Address.objects.filter(use_id=user.id)
+                addrs = Address.objects.filter(use_id=id)
                 for a in addrs:
                     a.u_addrstatus = 0
                     a.save()
                 Address.objects.create(
-                    use_id=user.id,
+                    use_id=id,
                     u_tel=tel,
                     u_provinces=province,
                     u_city=city,
@@ -60,7 +58,7 @@ def adddizhi(request):
                 )
             else:
                 Address.objects.create(
-                    use_id=user.id,
+                    use_id=id,
                     u_tel=tel,
                     u_provinces=province,
                     u_city=city,
@@ -71,19 +69,23 @@ def adddizhi(request):
                     u_detailaddr=address
                 )
             return HttpResponseRedirect(
-                reverse('a:dizhi')
+                reverse('zl:dizhi')
             )
 
-def deldizhi(request,id):
+
+def deldizhi(request, id):
     if request.method == 'GET':
         Address.objects.filter(id=id).delete()
-        return HttpResponseRedirect(reverse('a:dizhi'))
+        return HttpResponseRedirect(reverse('zl:dizhi'))
+
 
 # 改变地址
-def changedizhi(request,id):
+def changedizhi(request, id):
     if request.method == 'GET':
-        addrs = Address.objects.filter(id=id)
-        return render(request, 'xiugai_dizhi.html',{'addrs': addrs})
+        s_id = request.session.get('user_id')
+        if s_id:
+            addrs = Address.objects.filter(id=id)
+            return render(request, 'xiugai_dizhi.html', {'addrs': addrs})
     if request.method == 'POST':
         tel = request.POST.get('mobile')
         province = request.POST.get('province')
@@ -117,8 +119,9 @@ def changedizhi(request,id):
             addr.u_detailaddr = address
             addr.save()
         return HttpResponseRedirect(
-            reverse('a:dizhi')
+            reverse('zl:dizhi')
         )
+
 
 def classify(request):
     if request.method == 'GET':
@@ -140,7 +143,7 @@ def classify_list(request, code):
                 images_list = good.g_pics
                 image = images_list.split(',')[0]
                 good.g_pics = image
-                good.discount = round(10*(float(good.g_price)/float(good.g_mktprice)))
+                good.discount = round(10 * (float(good.g_price) / float(good.g_mktprice)))
 
             # 分页
             page_id = request.GET.get('page_id', 1)
@@ -153,6 +156,35 @@ def classify_list(request, code):
             return HttpResponseRedirect(
                 reverse('zl:classify')
             )
+
+
+def add_one_cart(request):
+    goods_id = request.GET.get('id')
+    g_inventory= request.GET.get('g_inventory')
+    g_code = request.GET.get('code')
+    id = request.session.get('user_id')
+    if id:
+        if int(g_inventory) >= 1:
+            # if user and user.id:
+            user_carts = Cart.objects.filter(g_id=goods_id).first()
+            if user_carts:
+                user_carts.g_num += 1
+                user_carts.save()
+            else:
+                Cart.objects.create(
+                    u_id=id,
+                    g_id=goods_id,
+                    g_num=1,
+                    is_select=1
+                )
+            data = {'code': 200}
+            return JsonResponse(data)
+        else:
+            data = {'code': 900}
+            return JsonResponse(data)
+    else:
+        data = {'code': 2000,'g_code':g_code}
+        return JsonResponse(data)
 
 
 def show(request, goods_id=70):
@@ -178,16 +210,14 @@ def show(request, goods_id=70):
             dict = {}
             for image_color in image_color_list:
                 image_p_w = image_color.split('http')
-                image_p_w[1]= 'http' + image_p_w[1]
+                image_p_w[1] = 'http' + image_p_w[1]
                 url = image_p_w[1]
                 dict[url] = image_p_w[0]
-
 
             goods.g_class = dict
         else:
             dict = {}
             goods.g_class = dict
-
 
         goods.discount = round(10 * (float(goods.g_price) / float(goods.g_mktprice)))
 
@@ -224,65 +254,74 @@ def add_cart(request):
     number1 = request.GET.get('number')
     goods_id = request.GET.get('id')
     g_inventory = request.GET.get('g_inventory')
-    if int(g_inventory) >= int(number1):
-        user = 1
 
-        # if user and user.id:
-        user_carts = Cart.objects.filter(g_id=goods_id).first()
-        if user_carts:
-            user_carts.g_num += int(number1)
-            user_carts.save()
+
+    id = request.session.get('user_id')
+    if id:
+        if int(g_inventory) >= int(number1):
+            # if user and user.id:
+            user_carts = Cart.objects.filter(g_id=goods_id).first()
+            if user_carts:
+                user_carts.g_num += int(number1)
+                user_carts.save()
+            else:
+                Cart.objects.create(
+                    u_id=id,
+                    g_id=goods_id,
+                    g_num=number1,
+                    is_select=1
+                )
+            data = {'code': 200}
+            return JsonResponse(data)
         else:
-            Cart.objects.create(
-                u_id=user,
-                g_id=goods_id,
-                g_num=number1,
-                is_select=1
-            )
-        data = {'code': 200}
-        return JsonResponse(data)
+            data = {'code': 900}
+            return JsonResponse(data)
     else:
-        data = {'code':900}
+        data = {'code': 1000, 'goods_id': goods_id}
         return JsonResponse(data)
 
 
 
 def cart(request):
-    return render(request, 'cart.html')
+    return render(request,'cart.html')
 
 
 def buy(request):
-
     number1 = request.GET.get('number')
     goods_id = request.GET.get('id')
     g_inventory = request.GET.get('g_inventory')
     if int(g_inventory) >= int(number1):
-        user = 1
-        goods = Goods.objects.filter(id=goods_id).first()
-        price = goods.g_price
+        u_id = request.session.get('user_id')
+        if u_id:
+            goods = Goods.objects.filter(id=goods_id).first()
+            price = goods.g_price
 
-        Orders.objects.create(
-            u_id=user,
-            o_price=price,
-            o_num=number1,
-            o_status=0
-        )
-        o_id = Orders.objects.filter(u_id=user).last().id
-        Goodsorder.objects.create(
-            g_id=goods_id,
-            ord_id=o_id
-        )
-        data = {'code': 200}
-        return JsonResponse(data)
+            Orders.objects.create(
+                u_id=u_id,
+                o_price=price,
+                o_num=number1,
+                o_status=0
+            )
+            o_id = Orders.objects.filter(u_id=u_id).last().id
+            Goodsorder.objects.create(
+                g_id=goods_id,
+                ord_id=o_id,
+                g_order_num=number1
+            )
+            data = {'code': 200}
+
+            return JsonResponse(data)
+        else:
+            data = {'code':1000,'goods_id':goods_id}
+            return JsonResponse(data)
+
+
     else:
-        data = {'code':900}
+        data = {'code': 900}
         return JsonResponse(data)
 
 
 def order(request):
-    return render(request, 'order.html')
-
-
-
-
-
+    return HttpResponseRedirect(
+        reverse('yxr:allorders')
+    )
