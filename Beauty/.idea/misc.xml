@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
 <<<<<<< HEAD
+<<<<<<< HEAD
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.6 (shopping)" project-jdk-type="Python SDK" />
 =======
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.6 (flaskenv)" project-jdk-type="Python SDK" />
+>>>>>>> upstream/dev
+=======
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.6 (testenv) (11)" project-jdk-type="Python SDK" />
 >>>>>>> upstream/dev
 </project>

@@ -14,27 +14,35 @@ django.setup()
 
 from cart.models import *
 from django.http import JsonResponse, HttpResponse
+from django.core.urlresolvers import reverse
+
+from django.http import HttpResponseRedirect
 
 
 # 购物车页面
-def cart(request):
-    return render(request, 'cart.html')
 
 
 # 装饰器判断用户是否登录
 def user_login(func):
-    def wrapper(*args, **kwargs):
-        pass
-        func(*args, **kwargs)
+    def wrapper(request, *args, **kwargs):
+        user_id = request.session.get('user_id')
+        if user_id:
+            end = func(request, *args, **kwargs)
+            return end
+        else:
+            return HttpResponseRedirect(reverse('yxr:login'))
 
     return wrapper
 
 
-# 默认用户id=1
-user_id = 1
+@user_login
+def cart(request):
+    return render(request, 'cart.html')
 
 
+@user_login
 def user_cart(request):
+    user_id = int(request.session.get('user_id'))
     carts = Cart.objects.filter(u_id=user_id)
     goods_desc = []
     total = 0
@@ -67,6 +75,7 @@ def user_cart(request):
 
 
 #  订单操作
+@user_login
 def cart_choice(request):
     g_id = request.GET.get('g_id')
     code = request.GET.get('code')
@@ -85,6 +94,7 @@ def cart_choice(request):
 
 
 # 增加和减少商品
+@user_login
 def cart_add_sub(request):
     good_id = request.GET.get('good_id')
     print(good_id)
@@ -114,9 +124,11 @@ def cart_add_sub(request):
 
 # 默认user_id =1
 # 全删和全加
+@user_login
 def all_goods_cart(request):
     status = request.GET.get('status')
     goods_desc = []
+    user_id = int(request.session.get('user_id'))
     carts = Cart.objects.filter(u_id=user_id)
     if int(status) == 1:
         for cart in carts:
@@ -149,26 +161,30 @@ def all_goods_cart(request):
         print(mkttotal)
         data = {'code': 200, 'goods': goods_desc, 'total': total, 'mktprice': mkttotal}
         return JsonResponse(data)
+
+
 # 创建订单购物车 所有商品订单订单
+@user_login
 def all_create_order(request):
-    orders=request.GET.get('orders')
-    orders =json.loads(orders)
+    user_id = int(request.session.get('user_id'))
+    orders = request.GET.get('orders')
+    orders = json.loads(orders)
     print(orders)
-    total_price=0
-    mkt_total_price=0
+    total_price = 0
+    mkt_total_price = 0
     for key in list(orders):
-        good=Goods.objects.filter(id=int(key)).first()
-        total_price +=float(good.g_price)*int(orders[key])
-        mkt_total_price += float(good.g_mktprice)*int(orders[key])
-        good_orders =Goodsorder.objects.filter(g_id=int(key))
+        good = Goods.objects.filter(id=int(key)).first()
+        total_price += float(good.g_price) * int(orders[key])
+        mkt_total_price += float(good.g_mktprice) * int(orders[key])
+        good_orders = Goodsorder.objects.filter(g_id=int(key))
         if good_orders.count():
-            order_ids=[]
+            order_ids = []
             for good_order in good_orders:
                 order_ids.append(good_order.ord_id)
-            order_ids=set(order_ids)
+            order_ids = set(order_ids)
             for order_id in order_ids:
-                order=Orders.objects.filter(id=order_id).first()
-                if order.o_status==0:
+                order = Orders.objects.filter(id=order_id).first()
+                if order.o_status == 0:
                     # 操作订单表
                     order.o_num += int(orders[key])
                     order.o_price = float(Goods.objects.filter(id=int(key)).first().g_price) + order.o_price
@@ -187,19 +203,19 @@ def all_create_order(request):
     num = 0
     total = 0
     for key, value in orders.items():
-        num+=int(value)
-        good=Goods.objects.filter(id=int(key)).first()
-        total+=float(good.g_price)
+        num += int(value)
+        good = Goods.objects.filter(id=int(key)).first()
+        total += float(good.g_price)
         # 操作购物车
         cart = Cart.objects.filter(g_id=int(key)).first()
         cart.is_select = 0
         cart.g_num = 0
         cart.save()
-    if len(orders)>0:
-        order_time=datetime.datetime.now()+datetime.timedelta(hours=8)
+    if len(orders) > 0:
+        order_time = datetime.datetime.now() + datetime.timedelta(hours=8)
         # 创建订单
         Orders.objects.create(
-           o_creattime=order_time,
+            o_creattime=order_time,
             o_num=num,
             u_id=user_id,
             o_price=total,
@@ -208,18 +224,21 @@ def all_create_order(request):
         # 创建goodorder
         for key, value in orders.items():
             Goodsorder.objects.create(
-            ord_id=Orders.objects.filter(o_creattime=order_time).first().id,
-            g_id=int(key),
-            g_order_num=int(value)
+                ord_id=Orders.objects.filter(o_creattime=order_time).first().id,
+                g_id=int(key),
+                g_order_num=int(value)
             )
-            cart =Cart.objects.filter(g_id=int(key)).first()
-            cart.is_select=0
+            cart = Cart.objects.filter(g_id=int(key)).first()
+            cart.is_select = 0
             cart.save()
-    mkt_total_price =mkt_total_price-total_price
-    data={'code':200,'total_price':total_price,'mkt_total_price':mkt_total_price}
+    mkt_total_price = mkt_total_price - total_price
+    data = {'code': 200, 'total_price': total_price, 'mkt_total_price': mkt_total_price}
     return JsonResponse(data)
+
+
 # 穿件单个商品订单
-def creat_order(g_id,g_num,order_time):
+
+def creat_order(g_id, g_num, order_time, user_id):
     total = int(g_num) * float(Goods.objects.filter(id=int(g_id)).first().g_price)
     Orders.objects.create(
         o_creattime=order_time,
@@ -237,57 +256,64 @@ def creat_order(g_id,g_num,order_time):
     cart.is_select = 0
     cart.g_num = 0
     cart.save()
+
+
+@user_login
 def one_create_order(request):
-    g_id=request.GET.get('g_id')
-    g_num=request.GET.get('g_num')
-    good =Goods.objects.filter(id=int(g_id)).first()
-    total_price=float(good.g_price)*int(g_num)
-    mkt_total_price=float(good.g_mktprice)*int(g_num)
+    user_id = int(request.session.get('user_id'))
+    g_id = request.GET.get('g_id')
+    g_num = request.GET.get('g_num')
+    good = Goods.objects.filter(id=int(g_id)).first()
+    total_price = float(good.g_price) * int(g_num)
+    mkt_total_price = float(good.g_mktprice) * int(g_num)
     order_time = datetime.datetime.now() + datetime.timedelta(hours=8)
-    goods=Goodsorder.objects.filter(g_id=int(g_id))
+    goods = Goodsorder.objects.filter(g_id=int(g_id))
     if not goods.count():
-        creat_order(g_id,g_num,order_time)
+        creat_order(g_id, g_num, order_time, user_id)
     else:
-        order_ids=[]
+        order_ids = []
         for good in goods:
             order_ids.append(good.ord_id)
-        order_ids=set(order_ids)
-        order_loop=0
+        order_ids = set(order_ids)
+        order_loop = 0
         for order_id in order_ids:
-            order=Orders.objects.filter(id=order_id).first()
-            if order.o_status==0:
-                order.o_num+=int(g_num)
-                order.o_price=float(Goods.objects.filter(id=int(g_id)).first().g_price)+order.o_price
+            order = Orders.objects.filter(id=order_id).first()
+            if order.o_status == 0:
+                order.o_num += int(g_num)
+                order.o_price = float(Goods.objects.filter(id=int(g_id)).first().g_price) + order.o_price
                 order.save()
-                good_order=Goodsorder.objects.filter(ord_id=order.id,g_id=int(g_id)).first()
-                good_order.g_order_num+=int(g_num)
+                good_order = Goodsorder.objects.filter(ord_id=order.id, g_id=int(g_id)).first()
+                good_order.g_order_num += int(g_num)
                 good_order.save()
                 cart = Cart.objects.filter(g_id=int(g_id)).first()
                 cart.is_select = 0
                 cart.g_num = 0
                 cart.save()
                 break
-            order_loop+=1
-        if order_loop ==len(order_ids):
-            creat_order(g_id, g_num, order_time)
+            order_loop += 1
+        if order_loop == len(order_ids):
+            creat_order(g_id, g_num, order_time, user_id)
     mkt_total_price = mkt_total_price - total_price
     data = {'code': 200, 'total_price': total_price, 'mkt_total_price': mkt_total_price}
     return JsonResponse(data)
+
+
 # 订单页面
+@user_login
 def order(request):
-    return render(request,'daizhifu.html')
-
-
-
+    return render(request, 'daizhifu.html')
 
 
 # 跳转结算页面
+@user_login
 def setlement1(request):
     return render(request, 'setlement.html')
 
 
 # 默认usrr_id
+@user_login
 def user_settlement(request):
+    user_id = int(request.seesion.get('user_id'))
     user_info = Address.objects.filter(use_id=user_id).first()
     user = User.objects.filter(id=user_id).first()
     user_order = {}
@@ -296,21 +322,24 @@ def user_settlement(request):
     data = {'code': 200, 'order': user_order}
     return JsonResponse(data)
 
+
+@user_login
 def immediately_pay(request):
-    order_id=request.GET.get('order_id')
-    order=Orders.objects.filter(id=int(order_id)).first()
+    user_id = request.seesion.get('user_id')
+    order_id = request.GET.get('order_id')
+    order = Orders.objects.filter(id=int(order_id)).first()
     user_info = Address.objects.filter(use_id=user_id).first()
     user = User.objects.filter(id=user_id).first()
     user_order = {}
     user_order['addr'] = user_info.u_detailaddr
     user_order['name'] = user.u_name
-    user_order['total_price']=order.o_price
-    good_orders =Goodsorder.objects.filter(ord_id=int(order_id))
-    mktprice=0
+    user_order['total_price'] = order.o_price
+    good_orders = Goodsorder.objects.filter(ord_id=int(order_id))
+    mktprice = 0
     for good_order in good_orders:
-        mktprice +=float(Goods.objects.filter(id=good_order.g_id).first().g_mktprice)
-    user_order['mktprice']=mktprice-order.o_price
-    data={'code':200,'order':user_order}
+        mktprice += float(Goods.objects.filter(id=good_order.g_id).first().g_mktprice)
+    user_order['mktprice'] = mktprice - order.o_price
+    data = {'code': 200, 'order': user_order}
     return JsonResponse(data)
 
 
@@ -339,7 +368,9 @@ def get_ali_object():
 
 
 # 默认user_id
+@user_login
 def pay_page1(request):
+    user_id = request.seesion.get('user_id')
     # 根据当前用户的配置，生成URL，并跳转。
     # money = float(request.POST.get('money'))
     money = 0

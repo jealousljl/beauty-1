@@ -14,9 +14,13 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$" />
 <<<<<<< HEAD
+<<<<<<< HEAD
     <orderEntry type="jdk" jdkName="Python 3.6 (shopping)" jdkType="Python SDK" />
 =======
     <orderEntry type="jdk" jdkName="Python 3.6 (flaskenv)" jdkType="Python SDK" />
+>>>>>>> upstream/dev
+=======
+    <orderEntry type="jdk" jdkName="Python 3.6 (testenv) (11)" jdkType="Python SDK" />
 >>>>>>> upstream/dev
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
